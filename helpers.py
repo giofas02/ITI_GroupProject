@@ -7,6 +7,9 @@ CONTAINS:
         with optional lag, auto-regression, and nonlinear relation.
 
     --> plot_ts_and_hist: Plots a time series and histogram of the input data.
+
+    --> plot_joint_distribution: Plot the joint distribution of S (x-axis) and X (y-axis).
+
 """
 
 import numpy as np
@@ -120,6 +123,56 @@ def plot_ts_and_hist(data, title_string, color = "steelblue"):
     plt.ylabel("Probability density")
     plt.tight_layout()
     plt.show()
+
+# =============================================================
+def plot_joint_distribution(
+    S,
+    X,
+    title_string="Joint distribution",
+    color="steelblue",
+    bins=50,
+    density=False
+):
+    """
+    Plot the joint distribution of S (x-axis) and X (y-axis).
+
+    Parameters
+    ----------
+    S : array-like
+        External signal.
+    X : array-like
+        Neural variable.
+    title_string : str
+        Title of the plot.
+    color : str, optional
+        Scatter color.
+    bins : int, optional
+        Number of bins for 2D histogram (used if density=True).
+    density : bool, optional
+        If True, plots a 2D histogram instead of scatter.
+    """
+
+    # Remove NaNs if present (important for lag case)
+    # NOTICE: does not break pairing because we're only keeping data where 
+    #         both X and S are valid
+    mask = ~np.isnan(S) & ~np.isnan(X) #~ is bitwise NOT operatore for Boolean arrays
+    S_clean = S[mask]
+    X_clean = X[mask]
+
+    plt.figure(figsize=(4, 4))
+
+    if density:
+        plt.hist2d(S_clean, X_clean, bins=bins, density=True)
+        plt.colorbar(label="Density")
+    else:
+        plt.scatter(S_clean, X_clean, s=8, alpha=0.4, color=color)
+
+    plt.xlabel("S(t)")
+    plt.ylabel("X(t)")
+    plt.title(title_string)
+    plt.tight_layout()
+    plt.show()
+
 
 # =============================================================
 def gaussian_mi(X, S):
