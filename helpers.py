@@ -13,6 +13,7 @@ CONTAINS:
 """
 
 import numpy as np
+import seaborn as sns
 import matplotlib.pyplot as plt
 
 # =============================================================
@@ -21,9 +22,9 @@ def generate_neural_variable(
     a=1.0, 
     noise_std=1.0, 
     lag=False, 
-    tau=1, 
+    tau=None, 
     auto_regr=False, 
-    phi=0.8, 
+    phi=None, 
     relation="linear"
 ):
     """
@@ -48,6 +49,11 @@ def generate_neural_variable(
         AR(1) coefficient (used if auto_regr=True).
     relation : str
         Type of relation between S and X. Options: "linear", "cubic", "quadratic", "tanh"
+
+        
+    General expression:
+
+        X[t] = phi * X[t-1] + a * f(S[t - tau]) + eta[t] (gaussian white noise)
 
     Returns
     -------
@@ -93,7 +99,7 @@ def generate_neural_variable(
     return X
 
 # =============================================================
-def plot_ts_and_hist(data, title_string, color = "steelblue"):
+def plot_ts(data, title_string, color = "steelblue"):
     """
     Plots a time series and histogram of the input data.
     
@@ -114,12 +120,13 @@ def plot_ts_and_hist(data, title_string, color = "steelblue"):
     plt.ylabel("S(t)")
     plt.tight_layout()
     plt.show()
-    
+
+def plot_hist(data, title_string, color = "steelblue", xlabel = None):    
     # Plot histogram
     plt.figure(figsize=(5, 3))
     plt.hist(data, bins=50, density=True, alpha=0.7, color=color, edgecolor='black')
     plt.title(f"Histogram of {title_string}")
-    plt.xlabel("S(t)")
+    plt.xlabel(xlabel)
     plt.ylabel("Probability density")
     plt.tight_layout()
     plt.show()
@@ -173,6 +180,40 @@ def plot_joint_distribution(
     plt.tight_layout()
     plt.show()
 
+
+# =============================================================
+def plot_joint_distribution_sns(
+    S,
+    X,
+    title_string=None,
+    color="steelblue",
+    kind="scatter", # Options: 'scatter', 'hist', 'kde', 'hex'
+    bins=50
+):
+    """
+    Plot the joint distribution of S and X with marginals using Seaborn.
+    """
+    # Clean NaNs to prevent Seaborn from plotting empty frames
+    mask = ~np.isnan(S) & ~np.isnan(X)
+    S_clean = S[mask]
+    X_clean = X[mask]
+
+    # Create the joint plot
+    # 'kind' replaces your density toggle: 'scatter' for points, 'hist' for 2D histogram
+    g = sns.jointplot(
+        x=S_clean, 
+        y=X_clean, 
+        kind=kind, 
+        color=color,
+        marginal_kws=dict(bins=bins, fill=True)
+    )
+
+    # Set labels and title
+    g.set_axis_labels("S(t)", "X(t)")
+    g.fig.suptitle("Joint Distribution - " + title_string, y=1.02) # Adjust title to not overlap marginals
+
+    g.ax_joint.grid(True, linestyle='--', alpha=0.6)
+    plt.show()
 
 # =============================================================
 def gaussian_mi(X, S):
