@@ -73,7 +73,7 @@ def generate_neural_variable(
         elif relation == "quadratic":
             return S_val**2
         elif relation == "tanh":
-            return np.tanh(S_val)
+            return np.tanh(5 * S_val)
         else:
             raise ValueError(f"Unknown relation: {relation}")
 
