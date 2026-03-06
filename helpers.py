@@ -71,7 +71,7 @@ def generate_neural_variable(
         elif relation == "cubic":
             return S_val**3
         elif relation == "quadratic":
-            return S_val**2
+            return 2*S_val**2 - 1
         elif relation == "tanh":
             return np.tanh(5 * S_val)
         else:
@@ -185,7 +185,7 @@ def plot_joint_distribution(
 def plot_joint_distribution_sns(
     S,
     X,
-    title_string=None,
+    title_string="",
     color="steelblue",
     kind="scatter", # Options: 'scatter', 'hist', 'kde', 'hex'
     bins=50
