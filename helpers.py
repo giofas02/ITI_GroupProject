@@ -26,13 +26,13 @@ from numba import njit
 
 def generate_neural_variable(
     S, 
+    f,
     a=1.0, 
     noise_std=1.0, 
     lag=False, 
     tau=None, 
     auto_regr=False, 
-    phi=None, 
-    relation="linear"
+    phi=None
 ):
     """
     Generate a synthetic neural variable X(t) given an external signal S(t)
@@ -71,18 +71,6 @@ def generate_neural_variable(
     Ntsteps = len(S)
     eta = numpy.random.normal(0, noise_std, Ntsteps)
 
-    # Define the function f(S) based on relation
-    def f(S_val):
-        if relation == "linear":
-            return S_val
-        elif relation == "cubic":
-            return S_val**3
-        elif relation == "quadratic":
-            return 2*S_val**2 - 1
-        elif relation == "tanh":
-            return numpy.tanh(5 * S_val)
-        else:
-            raise ValueError(f"Unknown relation: {relation}")
 
     # simple linear or lagged linear
     if not auto_regr:
@@ -111,6 +99,10 @@ def generate_neural_variable(
 #                  Analytic InfoT Quantities
 # =============================================================
 
+def entropy_gaussian(std):
+    return 0.5 * numpy.log2((2*numpy.pi*numpy.e * std**2))
+
+
 def mi_gaussian_analytic(sigma_square, v_square = 1):
     """
     Analytic differential mutual information between two continuous
@@ -122,7 +114,6 @@ def mi_gaussian_analytic(sigma_square, v_square = 1):
 def entropy_pmf(p):
     #Computes Shannon entropy of a probability mass function (p.m.f.)
     #p: probability vector (entries sum up to 1)
-
     if abs(numpy.sum(p) - 1.0) > 1e-6:
         raise ValueError("PMF not normalized")
     p = p[p > 1e-6]
@@ -130,7 +121,6 @@ def entropy_pmf(p):
 
 @njit(cache=True)
 def entropy_pmf_numba(p):
-
     #Computes Shannon entropy of a probability mass function (p.m.f.)
     #p: probability vector (entries sum up to 1)
     if abs(numpy.sum(p) - 1.0) > 1e-6:
