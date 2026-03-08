@@ -17,6 +17,7 @@ CONTAINS:
 import numpy
 import matplotlib.pyplot
 import seaborn
+from scipy.signal import savgol_filter
 from numba import njit
 
 # =============================================================
@@ -116,26 +117,22 @@ def mi_gaussian_analytic(sigma_square, v_square = 1):
     normal variables with variances $\sigma^2$ and $v^2$.
     """
     return 0.5 * numpy.log2(1 + v_square/sigma_square)
-# =============================================================
+
 
 def entropy_pmf(p):
-    """
-    Computes Shannon entropy of a probability mass function (p.m.f.)
-    p: probability vector (entries sum up to 1)
-    """
+    #Computes Shannon entropy of a probability mass function (p.m.f.)
+    #p: probability vector (entries sum up to 1)
+
     if abs(numpy.sum(p) - 1.0) > 1e-6:
         raise ValueError("PMF not normalized")
     p = p[p > 1e-6]
     return  - numpy.sum(numpy.log2(p) * p)
 
-
-
 @njit(cache=True)
 def entropy_pmf_numba(p):
-    """
-    Computes Shannon entropy of a probability mass function (p.m.f.)
-    p: probability vector (entries sum up to 1)
-    """
+
+    #Computes Shannon entropy of a probability mass function (p.m.f.)
+    #p: probability vector (entries sum up to 1)
     if abs(numpy.sum(p) - 1.0) > 1e-6:
         raise ValueError("PMF not normalized")
     entropy = 0.0
@@ -148,55 +145,71 @@ def entropy_pmf_numba(p):
 #                      Estimators
 # =============================================================
 
-# Binning Method
+# Discrete Shannon Entropy estimator
 
-def entropy_binning_1d(data, bin_number, which = "absolute"):
+@njit(cache=True)
+def _entropy_core(counts, bias_correction = None):
     """
-    Discretizes continuous data and computes the shannon entropy of the corresponding p.m.f.
-    data: 2d numpy array, nrows = number of observations
-    which: 
-        - "absolute" computes h(x)
-        - "conditional": computes h(x|s)
+    Estimates entropy of a probability mass function (pmf)
+    from empirical frequencies
+    counts: empirical observations, divided per category (bins, classes, whathever)
     """
+    total = numpy.sum(counts)
+    if total == 0:
+        return 0.0
+    res = 0.0
+    m = 0
+    for i in range(len(counts)):
+        if counts[i] > 0:
+            m += 1
+            p = counts[i] / total
+            res -= p * numpy.log2(p)
+    if bias_correction == "miller":
+        res += (m - 1)/(2 * total)
+    return res
+
+
+# Binning Method
+"""
+def entropy_binning_1d(data, bin_number, which = "absolute", bias_correction = None):
+    #Discretizes continuous data and computes the shannon entropy of the corresponding p.m.f.
+    #data: 2d numpy array, nrows = number of observations
+    #which: 
+    #    - "absolute" computes h(x)
+    #    - "conditional": computes h(x|s)
+    #
     S = data[:, 0]
     X = data[:, 1]
     N_observations = data.shape[0]
 
     if which == "absolute":
         counts, _ = numpy.histogram(X, bin_number, density = False)
-        frequencies = counts/N_observations
         return entropy_pmf(frequencies)
     
     if which == "conditional":
-        _, s_edges = numpy.histogram(S, bin_number, density=False)
+        # Pre-calculate global bins for BOTH X and S
+        _, s_edges = numpy.histogram(S, bins=bin_number)
+        _, x_edges = numpy.histogram(X, bins=bin_number)
+        
         H_x_given_s = 0.0
+        
         for i in range(bin_number):
             mask = (S >= s_edges[i]) & (S < s_edges[i+1])
+            if i == bin_number - 1:
+                mask = (S >= s_edges[i]) & (S <= s_edges[i+1])
+                
             subset = X[mask]
             if subset.size == 0:
                 continue
-            counts, _ = numpy.histogram(subset, bin_number, density=False)
-            freqs = counts / subset.size
-            H_x_given_s += (subset.size / N_observations) * entropy_pmf(freqs)
+            
+            counts, _ = numpy.histogram(subset, bins=x_edges)
+            p_x_given_si = counts / subset.size
+            p_si = subset.size / N_observations
+            H_x_given_s += p_si * entropy_pmf(p_x_given_si)
         return H_x_given_s
-    
+"""
 
 # --------------------------
-# numba version
-# TODO currently not working correctly - to check later
-
-@njit(cache=True)
-def _entropy_core(counts):
-    """Fastest possible entropy from raw counts."""
-    total = numpy.sum(counts)
-    if total == 0:
-        return 0.0
-    res = 0.0
-    for i in range(len(counts)):
-        if counts[i] > 0:
-            p = counts[i] / total
-            res -= p * numpy.log2(p)
-    return res
 
 @njit(cache=True)
 def _bin_data_1d(x, n_bins, x_min, x_max):
@@ -214,45 +227,47 @@ def _bin_data_1d(x, n_bins, x_min, x_max):
     return counts
 
 @njit(cache=True)
-def _entropy_absolute_njit(X, n_bins):
+def _entropy_absolute_njit(X, n_bins, bias_correction = None):
     counts = _bin_data_1d(X, n_bins, X.min(), X.max())
-    return _entropy_core(counts)
+    return _entropy_core(counts, bias_correction)
+
 
 @njit(cache=True)
-def _entropy_conditional_njit(S, X, n_bins):
+def _entropy_conditional_njit(S, X, n_bins, bias_correction = None):
     n_obs = len(S)
     s_min, s_max = S.min(), S.max()
     x_min, x_max = X.min(), X.max()
-    s_width = (s_max - s_min) / n_bins
+    
+    s_width = (s_max - s_min) / n_bins if s_max > s_min else 1.0
+    x_width = (x_max - x_min) / n_bins if x_max > x_min else 1.0
+    
+
+    counts_2d = numpy.zeros((n_bins, n_bins), dtype=numpy.int64)
+    s_bin_totals = numpy.zeros(n_bins, dtype=numpy.int64)
+    
+    for j in range(n_obs):
+
+        s_idx = int((S[j] - s_min) / s_width)
+        if s_idx >= n_bins: s_idx = n_bins - 1
+        elif s_idx < 0: s_idx = 0
+        
+        x_idx = int((X[j] - x_min) / x_width)
+        if x_idx >= n_bins: x_idx = n_bins - 1
+        elif x_idx < 0: x_idx = 0
+        
+        counts_2d[s_idx, x_idx] += 1
+        s_bin_totals[s_idx] += 1
     
     h_cond = 0.0
-    
-    # Iterate through each bin of S
     for i in range(n_bins):
-        s_start = s_min + i * s_width
-        s_end = s_start + s_width
-        if i == n_bins - 1: s_end = s_max + 1e-9 # handle edge case
-        
-        # Build histogram of X for samples where S is in current bin
-        subset_counts = numpy.zeros(n_bins, dtype=numpy.int64)
-        subset_size = 0
-        for j in range(n_obs):
-            if S[j] >= s_start and S[j] < s_end:
-                # Bin the X value
-                x_width = (x_max - x_min) / n_bins
-                x_idx = int((X[j] - x_min) / x_width)
-                if x_idx >= n_bins: x_idx = n_bins - 1
-                elif x_idx < 0: x_idx = 0
-                
-                subset_counts[x_idx] += 1
-                subset_size += 1
-        
+        subset_size = s_bin_totals[i]
         if subset_size > 0:
-            h_cond += (subset_size / n_obs) * _entropy_core(subset_counts)
+            p_s = subset_size / n_obs
+            h_cond += p_s * _entropy_core(counts_2d[i, :], bias_correction)
             
     return h_cond
 
-def entropy_binning_1d_numba(data, bin_number, which="absolute"):
+def entropy_binning_1d_numba(data, bin_number, which="absolute", bias_correction = None):
     """
     Python wrapper to handle the 'which' logic and dispatch to Numba.
     """
@@ -260,49 +275,73 @@ def entropy_binning_1d_numba(data, bin_number, which="absolute"):
     X = data[:, 1]
     
     if which == "absolute":
-        return _entropy_absolute_njit(X, bin_number)
+        return _entropy_absolute_njit(X, bin_number, bias_correction)
     elif which == "conditional":
-        return _entropy_conditional_njit(S, X, bin_number)
+        return _entropy_conditional_njit(S, X, bin_number, bias_correction)
     else:
         raise ValueError("Invalid 'which' parameter. Use 'absolute' or 'conditional'.")
 # -----------------------
 
+"""
 def mi_binning_2d(data, bin_number):
-    """
-    Discretizes continuous data and computes the mutual information of the corresponding pmf
-    """
+    #Discretizes continuous data and computes the mutual information of the corresponding pmf
     S = data[:, 0]
     X = data[:, 1]
     Hx = entropy_binning_1d(data, bin_number)
     Hx_given_s = entropy_binning_1d(data, bin_number, "conditional")
     return Hx - Hx_given_s
+"""
 
-
-def mi_binning_2d_numba(data, bin_number):
+def mi_binning_2d_numba(data, bin_number, bias_correction = None):
     """
     Discretizes continuous data and computes the mutual information of the corresponding pmf
     """
     S = data[:, 0]
     X = data[:, 1]
-    Hx = entropy_binning_1d_numba(data, bin_number)
-    Hx_given_s = entropy_binning_1d_numba(data, bin_number, "conditional")
+    Hx = entropy_binning_1d_numba(data, bin_number, "absolute" ,bias_correction)
+    Hx_given_s = entropy_binning_1d_numba(data, bin_number, "conditional", bias_correction)
     return Hx - Hx_given_s
 
 
-def find_inflection(y, dx):
-    # Inflection point (d2y = 0)
-    dy = numpy.gradient(y, dx)
-    d2y = numpy.gradient(dy, dx)
-    sign_change = numpy.diff(numpy.sign(d2y))
-    inflection_indices = numpy.where(sign_change != 0)[0]
 
-    if len(inflection_indices) > 0:
-        idx = inflection_indices[0]
-        value = y[idx]
-    else:
-        idx = None
-        value = None
-    return idx, value
+@njit(cache=True)
+def histogram_error_numba(x, bin_number):
+    """
+    Computes average relative error over the bin counts
+    In the Poisson limit, 
+    err = sqrt(counts)
+    rel.err = sqrt(counts)/counts
+    """
+    n_obs = len(x)
+    if n_obs == 0:
+        return 0.0
+    x_min, x_max = x.min(), x.max()
+    if x_max == x_min:
+        return 1.0 / numpy.sqrt(n_obs)
+        
+    counts = numpy.zeros(bin_number, dtype=numpy.int64)
+    width = (x_max - x_min) / bin_number
+    
+    for i in range(n_obs):
+        idx = int((x[i] - x_min) / width)
+        if idx >= bin_number:
+            idx = bin_number - 1
+        elif idx < 0:
+            idx = 0
+        counts[idx] += 1
+
+    total_error = 0.0
+    active_bins = 0
+    
+    for i in range(bin_number):
+        c = counts[i]
+        if c > 0:
+            total_error += 1.0 / numpy.sqrt(c)
+            active_bins += 1
+    if active_bins == 0:
+        return 0.0   
+    return total_error / active_bins
+
 
 # Joint Normality Assumption
 
