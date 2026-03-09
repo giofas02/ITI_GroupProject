@@ -132,7 +132,49 @@ def entropy_pmf_numba(p):
     return entropy
 
 # =============================================================
-#                      Estimators
+#                      Numeric InfoT Quantities
+# =============================================================
+
+def generate_data(N, sigma, f= lambda s:s):
+    """
+        X = f(S) + sigma * eta
+        S: normal random variable of std = 1, mean = 0
+    """
+    S = numpy.random.normal(0, 1, N)
+    X = f(S) + numpy.random.normal(0, sigma, N)
+    return numpy.column_stack((S, X))
+
+
+from scipy.stats import gaussian_kde
+
+def entropy_monotonic_numeric(f, N_large= 1000, sigma=0.1, return_model = False):
+    """
+    Numeric calculation of differential shannon entropy for X
+    X = f(S) + sigma * eta
+    S: normal random variable of std = 1, mean = 0
+    f: arbitrary **monotonic** function
+    eta: standard gaussian noise
+    sigma: noise amplitude
+    """
+    data = generate_data(N_large, sigma, f)
+    kde = gaussian_kde(data[: ,1], bw_method='scott')
+
+    # H(X) = -E[log(p(x))]
+    X_new = kde.resample(size = N_large, seed = 0)
+    log2_pdf = kde.logpdf(X_new) / numpy.log(2)
+    entropy = -numpy.mean(log2_pdf)
+    if return_model:
+        return kde, entropy
+    return entropy
+
+def mi_monotonic_numeric(f, N_large= 1000, sigma=0.1, return_model = False):
+    hx = entropy_monotonic_numeric(f, N_large, sigma, return_model)
+    return hx - entropy_gaussian(sigma)
+
+
+
+# =============================================================
+#                      Estimators from Data
 # =============================================================
 
 # Discrete Shannon Entropy estimator
@@ -358,6 +400,21 @@ def mi_gaussian_estimator(X, S):
 
 # TODO KDE Estimation
 
+def estimate_mi_kde(data):
+    s = data[:, 0]
+    x = data[:, 1]
+
+    kde_s = gaussian_kde(s)
+    kde_x = gaussian_kde(x)
+    kde_sx = gaussian_kde(data.T)
+    # TODO question: should I resample a new dataset- possibly larger - or not?
+    log_f_s = kde_s.logpdf(s)/numpy.log(2)
+    log_f_x = kde_x.logpdf(x)/numpy.log(2)
+    log_f_sx = kde_sx.logpdf(data.T)/numpy.log(2)
+
+    mi = numpy.mean(log_f_sx - log_f_s - log_f_x)
+    return mi
+
 # =============================================================
 #                      Plotting Fucntions
 # =============================================================
@@ -476,4 +533,4 @@ def plot_joint_distribution_sns(
     g.fig.suptitle("Joint Distribution - " + title_string, y=1.02) # Adjust title to not overlap marginals
 
     g.ax_joint.grid(True, linestyle='--', alpha=0.6)
-    matplotlib.pyplot.show()
+
