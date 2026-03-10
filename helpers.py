@@ -374,6 +374,23 @@ def histogram_error_numba(x, bin_number):
         return 0.0   
     return total_error / active_bins
 
+# Binning Estimation
+from kneed import KneeLocator
+
+def estimate_mi_binning(data):
+    N = data.shape[0]
+    dynamic_max = max(int(2 * numpy.sqrt(N)) , 50)
+    step = 2
+    bins = numpy.arange(10, dynamic_max, step)  
+    y = numpy.array([mi_binning_2d_numba(data, b) for b in bins])
+    kn = KneeLocator(bins, y, S=1.0, curve='concave', direction='increasing')
+        
+    res = numpy.nan
+    if kn.knee:
+        knee_idx = numpy.argwhere(bins == kn.knee)[0][0]
+        res = y[knee_idx]
+    return res
+
 
 # Joint Normality Assumption
 
@@ -398,9 +415,23 @@ def mi_gaussian_estimator(X, S):
 
 # TODO Gaussian Copula Assumption
 
+def get_empiric_cdf(data):
+    """
+    Computes empirical cdf from 'data'
+    returns a callable function that returns the empirical cdf value for an arbitrary input value x
+    """
+    sorted_data = numpy.sort(data)
+    n = len(sorted_data)
+    
+    def cdf(x):
+        count = numpy.searchsorted(sorted_data, x, side='right') # count data <= x
+        return count / n
+    
+    return cdf
+
 # TODO KDE Estimation
 
-def estimate_mi_kde(data):
+def estimate_mi_kde(data, resample = False):
     s = data[:, 0]
     x = data[:, 1]
 
