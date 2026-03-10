@@ -431,6 +431,10 @@ def get_empiric_cdf(data):
 
 # TODO KDE Estimation
 
+def estimate_entropy_kde(variable_vec):
+    kde = gaussian_kde(variable_vec)
+    return - numpy.mean(kde.logpdf(variable_vec)/numpy.log(2))
+
 def estimate_mi_kde(data, resample = False):
     s = data[:, 0]
     x = data[:, 1]
