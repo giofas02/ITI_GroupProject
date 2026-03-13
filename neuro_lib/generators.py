@@ -1,6 +1,8 @@
 import numpy as np
 
-
+"""
+This file should contain all the functions that generate the stimuli and neural response variables
+"""
 
 # =============================================================
 #                      Data Generators

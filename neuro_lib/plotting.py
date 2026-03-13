@@ -4,7 +4,9 @@ import seaborn as sns
 
 
 
-
+"""
+This file should contain all the plotting functions
+"""
 
 # =============================================================
 #                      Plotting Fucntions

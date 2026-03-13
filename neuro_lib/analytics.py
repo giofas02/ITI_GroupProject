@@ -2,6 +2,12 @@ import numpy as np
 from scipy.stats import gaussian_kde
 from .generators import generate_data
 
+"""
+This is the place for all the functions which aim to compute (both analytically or numerically)
+some information theoretical quantity (e.g. entropy, mi)
+"""
+
+
 # =============================================================
 #                  Analytic InfoT Quantities
 # =============================================================

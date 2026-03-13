@@ -5,6 +5,11 @@ from kneed import KneeLocator
 from .core import mi_binning_2d_numba
 
 
+"""
+This is the place for all functions that ESTIMATE some information 
+theoretical quantity from finite size DATA
+"""
+
 # =============================================================
 #                      Internal Estimators
 # =============================================================

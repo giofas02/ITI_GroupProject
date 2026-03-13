@@ -1,10 +1,10 @@
 from numba import njit
 import numpy as np
 
-
-# This file should contain all the functions decorated with numba (@njit)
-# and those starting with "_" (== functions that are not supposed to be called directly)
-
+"""
+This file should contain all the functions decorated with numba (@njit)
+and those starting with "_" (== functions that are not supposed to be called directly)
+"""
 
 @njit(cache=True)
 def entropy_pmf_numba(p):
