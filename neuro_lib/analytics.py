@@ -39,7 +39,7 @@ def entropy_pmf(p):
 # =============================================================
 
 
-def entropy_numeric(f, N_large= 1000, sigma=0.1, return_model = False):
+def entropy_numeric(f, N_large= int(1e3), sigma=0.1, return_model = False):
     """
     Numeric calculation of differential shannon entropy for X
     X = f(S) + sigma * eta
