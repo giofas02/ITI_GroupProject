@@ -20,10 +20,15 @@ def _estimate_mi_binning(data, bins):
     y = np.array([mi_binning_2d_numba(data, b) for b in bins])
     kn = KneeLocator(bins, y, S=1.0, curve='concave', direction='increasing')
         
-    res = np.nan
-    if kn.knee:
+    if kn.knee is not None:
         knee_idx = np.argwhere(bins == kn.knee)[0][0]
         res = y[knee_idx]
+    else:
+        N = data.shape[0]
+        fallback_bin = int(2 * np.sqrt(N))     # heuristic: sqrt rule but with quite more resolution
+        idx = np.argmin(np.abs(bins - fallback_bin))
+        res=y[idx]
+
     return res
 
 # ----------------------- Gaussian Copula ----------------------
@@ -69,17 +74,24 @@ def estimate_entropy_kde(variable_vec):
     kde = gaussian_kde(variable_vec)
     return - np.mean(kde.logpdf(variable_vec)/np.log(2))
 
-def _estimate_mi_kde(data, resample = False):
+def _estimate_mi_kde(data, resample = False, alpha=1.0):
     s = data[:, 0]
     x = data[:, 1]
 
+     # --- KDEs ---
     kde_s = gaussian_kde(s)
     kde_x = gaussian_kde(x)
     kde_sx = gaussian_kde(data.T)
-    log_f_s = kde_s.logpdf(s)/np.log(2)
-    log_f_x = kde_x.logpdf(x)/np.log(2)
-    log_f_sx = kde_sx.logpdf(data.T)/np.log(2)
 
+    # --- Bandwidth tuning ---
+    kde_s.set_bandwidth(bw_method=kde_s.factor * alpha)
+    kde_x.set_bandwidth(bw_method=kde_x.factor * alpha)
+    kde_sx.set_bandwidth(bw_method=kde_sx.factor * alpha)
+
+    # --- log densities ---
+    log_f_s = kde_s.logpdf(s) / np.log(2)
+    log_f_x = kde_x.logpdf(x) / np.log(2)
+    log_f_sx = kde_sx.logpdf(data.T) / np.log(2)
     mi = np.mean(log_f_sx - log_f_s - log_f_x)
     return mi
 
