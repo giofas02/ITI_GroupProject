@@ -127,3 +127,53 @@ def plot_joint_distribution_sns(
 
     g.ax_joint.grid(True, linestyle='--', alpha=0.6)
 
+
+# =============================================================
+def TE_heatMat(TE_mat, figsize=(10,8), cmap='viridis', show=True, n_ticks=5):
+    """
+    Plot a heatmap of a Transfer Entropy (TE) matrix with limited axis ticks.
+
+    Parameters
+    ----------
+    TE_mat : np.ndarray
+        Square matrix of transfer entropy (n_regions x n_regions).
+    figsize : tuple, default (10, 8)
+        Size of the figure.
+    cmap : str, default 'viridis'
+        Colormap for the heatmap.
+    show : bool, default True
+        Whether to call plt.show() immediately.
+    n_ticks : int, default 5
+        Number of ticks to display on each axis (evenly spaced).
+
+    Returns
+    -------
+    ax : matplotlib.axes.Axes
+        Axes object of the heatmap.
+    """
+    n_regions = TE_mat.shape[0]
+
+    plt.figure(figsize=figsize)
+    ax = sns.heatmap(
+        TE_mat,
+        cmap=cmap,
+        square=True,
+        cbar_kws={'label': 'Transfer Entropy'},
+        xticklabels=False,  # will set ticks manually
+        yticklabels=False
+    )
+
+    # Set limited ticks
+    tick_positions = np.linspace(0, n_regions-1, n_ticks, dtype=int)
+    ax.set_xticks(tick_positions + 0.5)  # +0.5 to center tick on the cell
+    ax.set_yticks(tick_positions + 0.5)
+    ax.set_xticklabels(tick_positions)
+    ax.set_yticklabels(tick_positions)
+
+    ax.set_title('Transfer Entropy Matrix Heatmap')
+    ax.set_xlabel('Target Region')
+    ax.set_ylabel('Source Region')
+
+    if show:
+        plt.show()
+    return ax

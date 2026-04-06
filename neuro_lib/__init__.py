@@ -10,8 +10,12 @@ from .plotting import (
     plot_joint_distribution, 
     plot_joint_distribution_sns
 )
+from .transfer_entropy import (
+    transfer_entropy_matrix,
+    transfer_entropy_binning
+)
 
-# Optional: Define what is exported when someone does 'from mi_engine import *'
+# Optional: Define what is exported when someone does 'from neuro_lib import *'
 __all__ = [
     'get_empiric_cdf',
     'estimate_mi',
@@ -22,5 +26,7 @@ __all__ = [
     'entropy_numeric',
     'entropy_gaussian',
     'mi_gaussian_analytic',
-    'plot_joint_distribution_sns'
+    'plot_joint_distribution_sns',
+    'transfer_entropy_matrix',
+    'transfer_entropy_binning'
 ]
