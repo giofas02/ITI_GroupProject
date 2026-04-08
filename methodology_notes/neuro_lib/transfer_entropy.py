@@ -1,6 +1,6 @@
 import numpy as np
 from numba import njit
-from .core import _entropy_core, _entropy_conditional_njit
+from .core import _entropy_core, _entropy_conditional_njit, _conditional_variance
 
 # =============================================================
 # 2D Conditional Entropy
@@ -76,7 +76,7 @@ def _entropy_conditional_2d_njit(S, X, n_bins, bias_correction=None):
 
 
 # =============================================================
-# Transfer Entropy (pairwise)
+# Transfer Entropy Binning
 # =============================================================
 def transfer_entropy_binning(source, target, n_bins=10, lag=1, bias_correction=None):
     """
@@ -128,45 +128,106 @@ def transfer_entropy_binning(source, target, n_bins=10, lag=1, bias_correction=N
 
 
 # =============================================================
+# Transfer Entropy Gaussian 
+# =============================================================
+def transfer_entropy_gaussian(source, target, lag=1):
+    """
+    Gaussian Transfer Entropy TE(source -> target)
+    """
+
+    # Build lagged variables
+    S_lag = np.roll(source, lag)
+    S_lag[:lag] = np.nan
+
+    X_past = np.roll(target, 1)
+    X_past[0] = np.nan
+
+    X_t = target
+
+    # Remove NaNs
+    mask = ~np.isnan(S_lag) & ~np.isnan(X_past)
+    S_lag = S_lag[mask]
+    X_past = X_past[mask]
+    X_t = X_t[mask]
+
+    # Var(X_t | X_past)
+    var1 = _conditional_variance(X_t, X_past)
+
+    # Var(X_t | X_past, S_lag)
+    Y_joint = np.column_stack((X_past, S_lag))
+    var2 = _conditional_variance(X_t, Y_joint)
+
+    # TE
+    TE = 0.5 * np.log(var1 / var2)
+
+    return TE
+
+
+# =============================================================
+# Transfer Entropy Computation Interface
+# =============================================================
+def transfer_entropy(source, target, method="binning", **kwargs):
+    """
+    General TE interface.
+
+    Parameters
+    ----------
+    method : str
+        "binning" or "gaussian"
+    kwargs :
+        passed to the chosen method
+    """
+
+    if method == "binning":
+        return transfer_entropy_binning(source, target, **kwargs)
+
+    elif method == "gaussian":
+        return transfer_entropy_gaussian(source, target, **kwargs)
+
+    else:
+        raise ValueError("Method must be 'binning' or 'gaussian'")
+
+
+# =============================================================
 # Transfer Entropy Matrix
 # =============================================================
-def transfer_entropy_matrix(data_matrix, n_bins=10, lag=1, bias_correction=None):
+def transfer_entropy_matrix(data_matrix, method="binning", **kwargs):
     """
     Compute full Transfer Entropy matrix.
 
     Parameters
     ----------
     data_matrix : array (n_regions, n_timepoints)
-        Input data
+    method : str
+        "binning" or "gaussian"
+    kwargs :
+        passed to TE estimator
+
     Returns
     -------
     TE_mat : array (n_regions, n_regions)
-        TE[i,j] = TE(region i -> region j)
     """
 
-    # Transpose: now shape = (time, regions)
+    # Transpose → (time, regions)
     data_matrix_t = data_matrix.T
 
     n_samples, n_regions = data_matrix_t.shape
 
-    # Initialize output matrix
     TE_mat = np.zeros((n_regions, n_regions))
 
-    # Loop over all pairs
     for i in range(n_regions):
         for j in range(n_regions):
 
             if i == j:
-                TE_mat[i, j] = 0.0  # no self-transfer
+                continue
 
-            else:
-                TE_mat[i, j] = transfer_entropy_binning(
-                    data_matrix_t[:, i],  # source
-                    data_matrix_t[:, j],  # target
-                    n_bins=n_bins,
-                    lag=lag,
-                    bias_correction=bias_correction
-                )
+            TE_mat[i, j] = transfer_entropy(
+                data_matrix_t[:, i],   # source
+                data_matrix_t[:, j],   # target
+                method=method,
+                **kwargs
+            )
 
     return TE_mat
+
 

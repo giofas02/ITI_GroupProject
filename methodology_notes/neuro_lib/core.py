@@ -20,7 +20,7 @@ def entropy_pmf_numba(p):
 
 
 # -----------------------------------------------
-# ----------- Binning Method --------------------
+#               Binning Method 
 # -----------------------------------------------
 
 @njit(cache=True)
@@ -164,3 +164,30 @@ def histogram_error_numba(x, bin_number):
     if active_bins == 0:
         return 0.0   
     return total_error / active_bins
+
+# -----------------------------------------------
+#       Joint Gaussian -- Cond. Variance
+# -----------------------------------------------
+def _conditional_variance(X, Y):
+    """
+    Compute Var(X | Y) where:
+    X: shape (n,)
+    Y: shape (n,) or (n, k)
+    """
+    if Y.ndim == 1:
+        Y = Y.reshape(-1, 1)
+
+    # Build joint vector [X, Y]
+    XY = np.column_stack((X, Y))
+
+    cov = np.cov(XY, rowvar=False)
+
+    var_X = cov[0, 0]
+    cov_XY = cov[0, 1:]
+    cov_YY = cov[1:, 1:]
+
+    # Solve instead of inverse (more stable)
+    inv_term = np.linalg.solve(cov_YY, cov_XY)
+
+    cond_var = var_X - cov_XY @ inv_term
+    return cond_var

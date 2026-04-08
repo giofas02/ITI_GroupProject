@@ -12,7 +12,8 @@ from .plotting import (
 )
 from .transfer_entropy import (
     transfer_entropy_matrix,
-    transfer_entropy_binning
+    transfer_entropy_binning, 
+    transfer_entropy_gaussian
 )
 
 # Optional: Define what is exported when someone does 'from neuro_lib import *'
@@ -29,4 +30,5 @@ __all__ = [
     'plot_joint_distribution_sns',
     'transfer_entropy_matrix',
     'transfer_entropy_binning'
+    'transfer_entropy_gaussian'
 ]
