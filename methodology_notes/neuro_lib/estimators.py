@@ -25,7 +25,7 @@ def _estimate_mi_binning(data, bins):
         res = y[knee_idx]
     else:
         N = data.shape[0]
-        fallback_bin = int(2 * np.sqrt(N))     # heuristic: sqrt rule but with quite more resolution
+        fallback_bin = int(np.sqrt(N))     # heuristic: sqrt rule 
         idx = np.argmin(np.abs(bins - fallback_bin))
         res=y[idx]
 
