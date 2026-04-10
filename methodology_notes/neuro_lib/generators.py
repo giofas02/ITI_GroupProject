@@ -41,3 +41,54 @@ def generate_data(N, sigma, f= lambda s:s):
     S = np.random.normal(0, 1, N)
     X = f(S) + np.random.normal(0, sigma, N)
     return np.column_stack((S, X))
+
+# =============================================================
+#          Data Generators for transfer entropy analysis
+# =============================================================
+
+
+def generate_ar_coupled(N, alpha=0.7, beta=0.3, gamma=0.5, lag=5, noise_std=0.1):
+    """
+    Generates two AR(1) coupled processes
+    X(t) = alpha * X(t-1) + noise
+    Y(t) = beta * Y(t-1) + gamma * X(t-lag) + noise
+    """
+    X = np.zeros(N)
+    Y = np.zeros(N)
+    
+    # initialization with white noise
+    noise_x = np.random.normal(0, noise_std, N)
+    noise_y = np.random.normal(0, noise_std, N)
+    
+    for t in range(max(lag, 1), N):
+        X[t] = alpha * X[t-1] + noise_x[t]
+        # Y depends on its own past and X's past
+        Y[t] = beta * Y[t-1] + gamma * X[t-lag] + noise_y[t]
+        
+    return X, Y
+
+def generate_oscillatory_coupled(N, dt=0.05, coupling=0.4, lag=10, noise_std=0.05):
+    """
+    neuro-inspired model: X and Y are two coupled oscillators
+    """
+    t = np.arange(N) * dt
+    X = np.sin(2 * np.pi * 2 * t) 
+    
+    # add noise to X
+    X += np.random.normal(0, noise_std, N)
+    
+    Y = np.zeros(N)
+    phase_y = 0
+    # coupling lag
+    X_shifted = np.roll(X, lag)
+    
+    for i in range(1, N):
+        # freqY = freq_base + coupling * past_source
+        freq_y = 5 + coupling * X_shifted[i] 
+        phase_y += 2 * np.pi * freq_y * dt
+        Y[i] = np.sin(phase_y)
+        
+    # add noise to Y
+    Y += np.random.normal(0, noise_std, N)
+    
+    return X, Y
