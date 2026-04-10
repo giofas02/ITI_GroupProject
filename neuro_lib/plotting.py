@@ -177,3 +177,30 @@ def TE_heatMat(TE_mat, figsize=(10,8), cmap='viridis', show=True, n_ticks=5):
     if show:
         plt.show()
     return ax
+
+# =============================================================
+#                 TIME SERIES DIAGNOSTICS
+# =============================================================
+
+def plot_diagnostic_ami(lags, mi_values, tau_opt):
+    plt.figure(figsize=(6, 4))
+    plt.plot(lags, mi_values, marker='o', markersize=4, label='AMI')
+    plt.axvline(tau_opt, color='red', linestyle='--', label=f'Tau Opt: {tau_opt}')
+    plt.title("Average Mutual Information for Delay Selection")
+    plt.xlabel("Delay")
+    plt.ylabel("MI (bits)")
+    plt.legend()
+    plt.grid(alpha=0.3)
+    plt.show()
+
+def plot_diagnostic_fnn(m_range, fnn_percentages, m_opt):
+    plt.figure(figsize=(6, 4))
+    plt.plot(m_range, fnn_percentages, marker='s', color='orange', label='FNN %')
+    plt.axvline(m_opt, color='red', linestyle='--', label=f'm Opt: {m_opt}')
+    plt.axhline(1.0, color='black', linestyle=':', label='1% Threshold')
+    plt.title("False Nearest Neighbors for Dimension Selection")
+    plt.xlabel("Dimension (m)")
+    plt.ylabel("FNN %")
+    plt.legend()
+    plt.grid(alpha=0.3)
+    plt.show()
