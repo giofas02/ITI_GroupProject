@@ -65,40 +65,59 @@ def _entropy_absolute_njit(X, n_bins, bias_correction = None):
     counts = _bin_data_1d(X, n_bins, X.min(), X.max())
     return _entropy_core(counts, bias_correction)
 
-
 @njit(cache=True)
-def _entropy_conditional_njit(S, X, n_bins, bias_correction = None):
+def _entropy_conditional_njit(S, X, n_bins, bias_correction=None):
+    """
+    Compute conditional entropy H(X | S) using binning.
+
+    Parameters
+    ----------
+    S : array (n_samples,)
+        The conditioning variable. Must be the FIRST argument.
+    X : array (n_samples,)
+        The variable whose entropy is being computed. Must be the SECOND argument.
+    n_bins : int
+    bias_correction : str or None
+
+    Returns
+    -------
+    float
+        H(X | S)
+
+    Note
+    ----
+    This function is NOT symmetric: _entropy_conditional_njit(S, X) != _entropy_conditional_njit(X, S).
+    Always pass the conditioning variable first.
+    """
     n_obs = len(S)
     s_min, s_max = S.min(), S.max()
     x_min, x_max = X.min(), X.max()
-    
+
     s_width = (s_max - s_min) / n_bins if s_max > s_min else 1.0
     x_width = (x_max - x_min) / n_bins if x_max > x_min else 1.0
-    
 
     counts_2d = np.zeros((n_bins, n_bins), dtype=np.int64)
     s_bin_totals = np.zeros(n_bins, dtype=np.int64)
-    
-    for j in range(n_obs):
 
+    for j in range(n_obs):
         s_idx = int((S[j] - s_min) / s_width)
         if s_idx >= n_bins: s_idx = n_bins - 1
         elif s_idx < 0: s_idx = 0
-        
+
         x_idx = int((X[j] - x_min) / x_width)
         if x_idx >= n_bins: x_idx = n_bins - 1
         elif x_idx < 0: x_idx = 0
-        
+
         counts_2d[s_idx, x_idx] += 1
         s_bin_totals[s_idx] += 1
-    
+
     h_cond = 0.0
     for i in range(n_bins):
         subset_size = s_bin_totals[i]
         if subset_size > 0:
             p_s = subset_size / n_obs
             h_cond += p_s * _entropy_core(counts_2d[i, :], bias_correction)
-            
+
     return h_cond
 
 def _entropy_binning_1d_numba(data, bin_number, which="absolute", bias_correction = None):

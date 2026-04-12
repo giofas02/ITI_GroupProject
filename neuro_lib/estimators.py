@@ -25,7 +25,7 @@ def _estimate_mi_binning(data, bins):
         res = y[knee_idx]
     else:
         N = data.shape[0]
-        fallback_bin = int(np.sqrt(N))     # heuristic: sqrt rule 
+        fallback_bin = int(2 * np.sqrt(N))     # heuristic: sqrt rule but with quite more resolution
         idx = np.argmin(np.abs(bins - fallback_bin))
         res=y[idx]
 
@@ -107,7 +107,6 @@ def _estimate_mi_gaussian(data):
     rho = np.corrcoef(data, rowvar = False)[0,1]
     return -0.5 * np.log2(1 - rho**2)
 
-
 # =============================================================
 #                      Public Wrapper (API)
 # =============================================================
@@ -128,3 +127,74 @@ def estimate_mi(data, method='binning', **kwargs):
     if method not in MI_ESTIMATION_METHODS:
         raise ValueError(f"Method {method} not recognized.")
     return MI_ESTIMATION_METHODS[method](data, **kwargs)
+
+
+
+# EXTENSION OF GAUSSIAN MI FOR COPULA
+def _estimate_mi_gaussian_multivariate(data, eps=1e-10):
+    """
+    Gaussian Mutual Information for multivariate case:
+    I(X;Y) = 1/2 log2( det Σ_X det Σ_Y / det Σ_{XY} )
+    """
+
+    X = data[:, 0].reshape(-1, 1)
+    Y = data[:, 1:]
+
+    # Covariances
+    # np.atleast_2d ensures the argument is at least 2D
+    # e.g. x = np.array([1,2,3]) i.e. shape = (3,)
+    # np.atleast_2d(x) --> array([[1,2,3]]) i.e. shape = (1,3)
+    cov_X = np.atleast_2d(np.cov(X, rowvar=False))
+    cov_Y = np.atleast_2d(np.cov(Y, rowvar=False))
+    cov_XY = np.atleast_2d(np.cov(data, rowvar=False))
+
+    # Regularization 
+    cov_X = cov_X + eps * np.eye(cov_X.shape[0])
+    cov_Y = cov_Y + eps * np.eye(cov_Y.shape[0])
+    cov_XY = cov_XY + eps * np.eye(cov_XY.shape[0])
+
+    # Determinants
+    det_X = np.linalg.det(cov_X)
+    det_Y = np.linalg.det(cov_Y)
+    det_XY = np.linalg.det(cov_XY)
+
+    # Numerical safety
+    det_X = max(det_X, eps)
+    det_Y = max(det_Y, eps)
+    det_XY = max(det_XY, eps)
+
+    mi = 0.5 * np.log2((det_X * det_Y) / det_XY)
+
+    return mi
+
+
+# EXTENSIONS FOR KDE
+def _estimate_log_density_kde(eval_points, fit_points, alpha=1.0):
+    """
+    Fit a KDE on fit_points, evaluate log-density at eval_points.
+    Returns array of log2-densities at each eval point.
+
+    Parameters
+    ----------
+    eval_points : array (n_samples,) or (n_samples, d)
+    fit_points  : array (n_samples,) or (n_samples, d)
+        Must be same shape. In practice we always evaluate at the
+        training points (plug-in estimator).
+    alpha : float
+        Bandwidth scaling factor.
+
+    Returns
+    -------
+    log2_density : array (n_samples,)
+    """
+    # gaussian_kde expects shape (d, n)
+    if fit_points.ndim == 1:
+        fit_T = fit_points
+        eval_T = eval_points
+    else:
+        fit_T  = fit_points.T
+        eval_T = eval_points.T
+
+    kde = gaussian_kde(fit_T)
+    kde.set_bandwidth(bw_method=kde.factor * alpha)
+    return kde.logpdf(eval_T) / np.log(2)   # nats → bits
