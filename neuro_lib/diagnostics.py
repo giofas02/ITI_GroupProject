@@ -29,14 +29,12 @@ def find_optimal_delay(signal, max_lag=50, method='gc'):
         s_lag = signal[:-lag]
         data = np.column_stack((s_t, s_lag))
         
-        # Utilizza il wrapper pubblico della libreria
         mi = estimate_mi(data, method=method)
         mi_values.append(mi)
     
     mi_values = np.array(mi_values)
     
-    # Trova il primo minimo locale
-    # Un minimo locale è un punto minore dei suoi vicini
+    # Find first local minimum 
     minima = (mi_values[1:-1] < mi_values[:-2]) & (mi_values[1:-1] < mi_values[2:])
     indices = np.where(minima)[0]
     
