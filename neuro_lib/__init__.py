@@ -2,7 +2,7 @@
 
 # Hoist the most important "Public API" functions
 from .estimators import estimate_mi, get_empiric_cdf, estimate_entropy_kde
-from .generators import generate_neural_variable, generate_data #generate_ar_coupled, generate_oscillatory_coupled
+from .generators import generate_neural_variable, generate_data, generate_ar_coupled, generate_oscillatory_coupled
 from .analytics import entropy_numeric, mi_numeric, entropy_gaussian, mi_gaussian_analytic
 from .plotting import (plot_ts, plot_hist, plot_joint_distribution, plot_joint_distribution_sns, plot_diagnostic_ami, plot_diagnostic_fnn)
 from .transfer_entropy import (
