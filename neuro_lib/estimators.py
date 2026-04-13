@@ -25,7 +25,7 @@ def _estimate_mi_binning(data, bins):
         res = y[knee_idx]
     else:
         N = data.shape[0]
-        fallback_bin = int(2 * np.sqrt(N))     # heuristic: sqrt rule but with quite more resolution
+        fallback_bin = int(np.sqrt(N))     # heuristic: sqrt rule 
         idx = np.argmin(np.abs(bins - fallback_bin))
         res=y[idx]
 
@@ -46,6 +46,17 @@ def get_empiric_cdf(data):
     return cdf
 
 def _estimate_mi_gaussian_copula(data):
+    # Apply empirical CDF transform to each column
+    transformed_data = np.zeros_like(data)
+    for i in range(data.shape[1]):
+        cdf = get_empiric_cdf(data[:, i])
+        u = cdf(data[:, i])
+        transformed_data[:, i] = norm.ppf(np.clip(u, 1e-15, 1 - 1e-15))
+    
+    # Now call the updated Gaussian MI
+    return _estimate_mi_gaussian(transformed_data)
+
+def _estimate_mi_gaussian_copula1D(data):
     "data: nrows = number of samples, ncols = 2"
 
     x = data[:, 0]
@@ -74,7 +85,27 @@ def estimate_entropy_kde(variable_vec):
     kde = gaussian_kde(variable_vec)
     return - np.mean(kde.logpdf(variable_vec)/np.log(2))
 
-def _estimate_mi_kde(data, resample = False, alpha=1.0):
+def _estimate_mi_kde(data, alpha=1.0):
+    # data[:, 0] is X, data[:, 1:] is Y
+    x = data[:, 0]
+    y = data[:, 1:]
+    
+    # KDE for X, Y, and Joint
+    kde_x = gaussian_kde(x)
+    kde_y = gaussian_kde(y.T)
+    kde_joint = gaussian_kde(data.T)
+    
+    # Apply bandwidth tuning if needed
+    for k in [kde_x, kde_y, kde_joint]:
+        k.set_bandwidth(bw_method=k.factor * alpha)
+
+    log_f_x = kde_x.logpdf(x) / np.log(2)
+    log_f_y = kde_y.logpdf(y.T) / np.log(2)
+    log_f_joint = kde_joint.logpdf(data.T) / np.log(2)
+    
+    return np.mean(log_f_joint - log_f_x - log_f_y)
+
+def _estimate_mi_kde1D(data, resample = False, alpha=1.0):
     s = data[:, 0]
     x = data[:, 1]
 
@@ -99,6 +130,24 @@ def _estimate_mi_kde(data, resample = False, alpha=1.0):
 
 def _estimate_mi_gaussian(data):
     """
+    Handles X (col 0) and Y (cols 1:). 
+    Works for any dimension of Y.
+    """
+    C = np.cov(data, rowvar=False)
+    
+    # Variance of X (scalar)
+    det_X = C[0, 0]
+    # Determinant of Covariance of Y
+    det_Y = np.linalg.det(C[1:, 1:])
+    # Determinant of Joint Covariance
+    det_Joint = np.linalg.det(C)
+    
+    # Avoid log of zero or negative due to noise
+    val = (det_X * det_Y) / det_Joint
+    return 0.5 * np.log2(max(val, 1e-10))
+
+def _estimate_mi_gaussian1D(data):
+    """
     Estimator from data
     Compute mutual information (in bits) assuming joint Gaussian distribution.
 
@@ -106,6 +155,7 @@ def _estimate_mi_gaussian(data):
     """
     rho = np.corrcoef(data, rowvar = False)[0,1]
     return -0.5 * np.log2(1 - rho**2)
+
 
 # =============================================================
 #                      Public Wrapper (API)

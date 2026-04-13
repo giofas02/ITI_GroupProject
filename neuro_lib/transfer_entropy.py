@@ -424,4 +424,59 @@ def transfer_entropy_matrix(data_matrix, method="binning", **kwargs):
 
     return TE_mat
 
+# =============================================================
+# Build correct vectors with given lag, embedding space and delay
+# =============================================================
 
+def _build_lagged_vectors(source, target, lag, m, tau):
+    """
+    Helper to create the embedded matrices for TE calculation.
+    """
+    n_samples = len(target)
+    # The past of Y (Target) - shape (n_samples, m)
+    # We create a matrix where each row is [y_{t-1}, y_{t-1-tau}, ..., y_{t-1-(m-1)tau}]
+    y_past = np.zeros((n_samples, m))
+    for i in range(m):
+        y_past[:, i] = np.roll(target, 1 + i * tau)
+    
+    # The current state of Y (Target)
+    y_t = target
+    
+    # The lagged state of X (Source)
+    x_lag = np.roll(source, lag)
+    
+    # Create mask to remove NaNs/invalid entries due to rolling
+    max_shift = max(lag, 1 + (m - 1) * tau)
+    mask = np.zeros(n_samples, dtype=np.bool_)
+    mask[max_shift:] = True
+    
+    return x_lag[mask], y_t[mask], y_past[mask]
+
+
+def transfer_entropy_withMI(source, target, method="binning", lag=1, m=1, tau=1, **kwargs):
+    """
+    Unified TE interface reusing MI estimators.
+    TE = I(X_lag ; [Y_t, Y_past]) - I(X_lag ; Y_past)
+    """
+    # Safety check for binning to avoid the curse of dimensionality
+    if method=="binning":       
+        m=1
+
+    # 1. Prepare vectors
+    x_l, y_t, y_p = _build_lagged_vectors(source, target, lag, m, tau)
+    
+    # 2. First Term: I(X_lag ; [Y_t, Y_past])
+    # Data matrix: [Source_Lag, Target_Current, Target_Past_1, Target_Past_2...]
+    # We want MI between column 0 and the rest
+    data_joint = np.column_stack((x_l, y_t, y_p))
+    # Note: estimate_mi expects (n_samples, 2). 
+    # For m > 1, we treat the 'target' side as a multidimensional variable.
+    # Ensure your estimators can handle ndim > 1 for the second variable.
+    i_joint = estimate_mi(data_joint, method=method, **kwargs)
+    
+    # 3. Second Term: I(X_lag ; Y_past)
+    data_past = np.column_stack((x_l, y_p))
+    i_past = estimate_mi(data_past, method=method, **kwargs)
+    
+    # 4. TE is the difference
+    return max(0, i_joint - i_past) # TE cannot be negative
