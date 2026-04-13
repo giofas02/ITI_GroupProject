@@ -40,8 +40,8 @@ def _entropy_core(counts, bias_correction = None):
             m += 1
             p = counts[i] / total
             res -= p * np.log2(p)
-    if bias_correction == "miller":
-        res += (m - 1)/(2 * total)
+    #if bias_correction == "miller":
+    #    res += (m - 1)/(2 * total)
     return res
 
 
