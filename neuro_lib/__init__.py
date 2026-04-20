@@ -10,7 +10,7 @@ from .transfer_entropy import (
     transfer_entropy_binning, 
     transfer_entropy_gaussian,
     transfer_entropy_kde, 
-    transfer_entropy_gaussian_copula, transfer_entropy_withMI
+    transfer_entropy_gaussian_copula, transfer_entropy_withMI, theoretical_TE_AR
 )
 from .diagnostics import check_stationarity, find_optimal_delay, find_optimal_dimension
 
@@ -38,6 +38,7 @@ __all__ = [
     'find_optimal_dimension', 
     'plot_diagnostic_ami', 
     'plot_diagnostic_fnn',
-    'transfer_entropy_withMI'
+    'transfer_entropy_withMI',
+    'theoretical_TE_AR'
 
 ]
