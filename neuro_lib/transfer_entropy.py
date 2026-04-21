@@ -480,3 +480,8 @@ def transfer_entropy_withMI(source, target, method="binning", lag=1, m=1, tau=1,
     
     # 4. TE is the difference
     return max(0, i_joint - i_past) # TE cannot be negative
+
+def theoretical_TE_AR(alpha, gamma, sigma_x, sigma_y):
+    var_x = (sigma_x**2) / (1 - alpha**2)
+    signal_contribution = (gamma**2) * var_x
+    return 0.5 * np.log2(1 + (signal_contribution / sigma_y**2))

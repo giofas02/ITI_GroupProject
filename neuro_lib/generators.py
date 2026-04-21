@@ -43,11 +43,13 @@ def generate_data(N, sigma, f= lambda s:s):
     return np.column_stack((S, X))
 
 
-def generate_ar_coupled(N, alpha=0.5, beta=0.5, gamma=0.4, lag=1, sigma=0.1):
+def generate_ar_coupled(N, alpha=0.5, beta=0.5, gamma=0.5, lag=1, sigma_x=0.1, sigma_y=0.1):
     X = np.zeros(N)
     Y = np.zeros(N)
-    ex = np.random.normal(0, sigma, N)
-    ey = np.random.normal(0, sigma, N)
+    # Source noise is FIXED at 1.0 so the "Signal" power is constant
+    # Target noise is VARIABLE (this is what we sweep)
+    ex = np.random.normal(0, sigma_x, N)
+    ey = np.random.normal(0, sigma_y, N)
     
     for t in range(max(lag, 1), N):
         X[t] = alpha * X[t-1] + ex[t]
@@ -56,16 +58,16 @@ def generate_ar_coupled(N, alpha=0.5, beta=0.5, gamma=0.4, lag=1, sigma=0.1):
     return X, Y
 
 
-def generate_oscillatory_coupled(N, dt=0.01, coupling=0.5):
+def generate_oscillatory_coupled(N, dt=0.01, coupling=0.5, lag=1, sigma_x=0.1, sigma_y=0.1):
     t = np.linspace(0, N*dt, N)
     # Segnale X: una sinusoide semplice
-    X = np.sin(2 * np.pi * 5 * t) + np.random.normal(0, 0.1, N)
+    X = np.sin(2 * np.pi * 5 * t) + np.random.normal(0, sigma_x, N)
     
     Y = np.zeros(N)
     phase_y = 0
     for i in range(1, N):
-        freq_y = 10 + coupling * X[i-1] 
+        freq_y = 10 + coupling * X[i-lag] 
         phase_y += 2 * np.pi * freq_y * dt
-        Y[i] = np.sin(phase_y) + np.random.normal(0, 0.1, N)[i]
+        Y[i] = np.sin(phase_y) + np.random.normal(0, sigma_y, N)[i]
         
     return X, Y

@@ -2,6 +2,7 @@ import numpy as np
 from statsmodels.tsa.stattools import adfuller
 from scipy.spatial.distance import cdist
 from .estimators import estimate_mi
+from .transfer_entropy import transfer_entropy_withMI
 
 def check_stationarity(data, significance=0.05):
     """
@@ -86,3 +87,29 @@ def find_optimal_dimension(signal, tau, max_m=10, R_tol=15.0):
     m_opt = m_range[opt_idx[0]] if len(opt_idx) > 0 else max_m
     
     return m_opt, m_range, fnn_percentages
+
+def test_significance(x, y, method, lag, m, tau, n_perms=100, **kwargs):
+    """
+    Computes TE and performs a permutation test to define the noise floor.
+    """
+    # 1. Calculate the 'Real' interaction
+    if method == "binning": 
+        te_real = transfer_entropy_withMI(x, y method, true_lag, 
+                                                   m, tau, bins=bins_to_test)
+    else: te_real = transfer_entropy_withMI(x, y, method=method, lag=lag, m=m, tau=tau, **kwargs)
+    
+    # 2. Build the Null Distribution via Shuffling
+    surrogates = []
+    for _ in range(n_perms):
+        # np.random.permutation breaks the temporal link X_{t-lag} -> Y_t
+        x_shuffled = np.random.permutation(x)
+        te_s = transfer_entropy_withMI(x_shuffled, y, method=method, lag=lag, m=m, tau=tau, **kwargs)
+        surrogates.append(te_s)
+    
+    surrogates = np.array(surrogates)
+    
+    # 3. Derive Statistics
+    p_val = (np.sum(surrogates >= te_real) + 1) / (n_perms + 1)
+    threshold = np.percentile(surrogates, 95)
+    
+    return te_real, p_val, threshold, surrogates
