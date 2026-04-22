@@ -1,8 +1,10 @@
 import numpy as np
 from statsmodels.tsa.stattools import adfuller
 from scipy.spatial.distance import cdist
+from scipy.stats import rankdata
+
 from .estimators import estimate_mi
-from .transfer_entropy import transfer_entropy_withMI
+from .transfer_entropy import transfer_entropy_withMI, transfer_entropy_matrix
 
 def check_stationarity(data, significance=0.05):
     """
@@ -94,7 +96,7 @@ def test_significance(x, y, method, lag, m, tau, n_perms=100, **kwargs):
     """
     # 1. Calculate the 'Real' interaction
     if method == "binning": 
-        te_real = transfer_entropy_withMI(x, y method, true_lag, 
+        te_real = transfer_entropy_withMI(x, y, method, true_lag, 
                                                    m, tau, bins=bins_to_test)
     else: te_real = transfer_entropy_withMI(x, y, method=method, lag=lag, m=m, tau=tau, **kwargs)
     
@@ -113,3 +115,89 @@ def test_significance(x, y, method, lag, m, tau, n_perms=100, **kwargs):
     threshold = np.percentile(surrogates, 95)
     
     return te_real, p_val, threshold, surrogates
+
+def permutation_test_TE(data_matrix, TE_real, method, n_perms=200, 
+                        alpha=0.05, fdr=True, **kwargs):
+    """
+    Assess statistical significance of a pre-computed TE matrix
+    via permutation test.
+
+    Instead of recomputing TE_real (already done above), this function
+    only computes the NULL distribution by shuffling the source n_perms times.
+
+    Parameters
+    ----------
+    data_matrix : array (n_regions, n_timepoints)
+        The original data — used only for generating shuffled nulls.
+    TE_real : array (n_regions, n_regions)
+        Pre-computed real TE matrix.
+    method : str
+        'gaussian', 'copula', 'binning', or 'kde'.
+    n_perms : int
+        Number of shuffles. More = more precise p-values but slower.
+    alpha : float
+        Significance threshold (default 0.05).
+    fdr : bool
+        Whether to apply Benjamini-Hochberg FDR correction.
+    **kwargs
+        Passed to transfer_entropy_matrix (e.g. lag=4, n_bins=10).
+
+    Returns
+    -------
+    sig_mask  : (n, n) bool   — True where connection is significant
+    p_matrix  : (n, n) float  — p-value for each pair
+    null_95   : (n, n) float  — 95th percentile of null per pair
+    """
+    n_regions = TE_real.shape[0]
+
+    # --------------------------------------------------
+    # Step 1: build null distribution
+    # null_dist[k, i, j] = TE(i->j) under shuffle k
+    # --------------------------------------------------
+    null_dist = np.zeros((n_perms, n_regions, n_regions))
+
+    for k in range(n_perms):
+        if k % 50 == 0:
+            print(f"  [{method}] shuffle {k}/{n_perms}...")
+
+        # Shuffle each source independently:
+        # this preserves each signal's marginal distribution
+        # but destroys all temporal coupling between signals
+        shuffled = np.array([np.random.permutation(data_matrix[i])
+                             for i in range(n_regions)])
+
+        null_dist[k] = transfer_entropy_matrix(shuffled, method=method, **kwargs)
+
+    # --------------------------------------------------
+    # Step 2: compute p-values
+    # p[i,j] = fraction of null samples >= TE_real[i,j]
+    # (one-sided: we only care if real TE is unusually HIGH)
+    # --------------------------------------------------
+    p_matrix = np.mean(null_dist >= TE_real[np.newaxis, :, :], axis=0)
+    np.fill_diagonal(p_matrix, 1.0)  # diagonal is undefined, mark as not significant
+
+    # 95th percentile of null per pair (useful for visualization)
+    null_95 = np.percentile(null_dist, 95, axis=0)
+
+    # --------------------------------------------------
+    # Step 3: significance — with or without FDR correction
+    # --------------------------------------------------
+    if fdr:
+        # Benjamini-Hochberg procedure on all off-diagonal pairs
+        off_diag     = ~np.eye(n_regions, dtype=bool)
+        p_flat       = p_matrix[off_diag]          # all off-diagonal p-values, flattened
+        m            = len(p_flat)                 # total number of tests
+        ranks        = rankdata(p_flat)            # rank each p-value (1 = smallest)
+        bh_threshold = (ranks / m) * alpha         # BH critical value for each rank
+        rejected     = p_flat <= bh_threshold      # True = significant after correction
+
+        sig_mask = np.zeros((n_regions, n_regions), dtype=bool)
+        sig_mask[off_diag] = rejected
+    else:
+        sig_mask = (p_matrix < alpha)
+        np.fill_diagonal(sig_mask, False)
+
+    label = "FDR-corrected" if fdr else "uncorrected"
+    print(f"  → {sig_mask.sum()} significant connections ({label}, α={alpha})")
+
+    return sig_mask, p_matrix, null_95

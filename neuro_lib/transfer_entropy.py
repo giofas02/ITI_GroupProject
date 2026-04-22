@@ -485,3 +485,4 @@ def theoretical_TE_AR(alpha, gamma, sigma_x, sigma_y):
     var_x = (sigma_x**2) / (1 - alpha**2)
     signal_contribution = (gamma**2) * var_x
     return 0.5 * np.log2(1 + (signal_contribution / sigma_y**2))
+
