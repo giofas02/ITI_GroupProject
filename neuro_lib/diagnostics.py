@@ -96,9 +96,8 @@ def test_significance(x, y, method, lag, m, tau, n_perms=100, **kwargs):
     """
     # 1. Calculate the 'Real' interaction
     if method == "binning": 
-        te_real = transfer_entropy_withMI(x, y, method, true_lag, 
-                                                   m, tau, bins=bins_to_test)
-    else: te_real = transfer_entropy_withMI(x, y, method=method, lag=lag, m=m, tau=tau, **kwargs)
+        te_real = transfer_entropy_withMI(x, y, method, lag, m, tau, **kwargs)
+    else: te_real = transfer_entropy_withMI(x, y, method=method, lag=lag, m=m, tau=tau,)
     
     # 2. Build the Null Distribution via Shuffling
     surrogates = []
