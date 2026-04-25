@@ -80,7 +80,7 @@ def _entropy_conditional_2d_njit(S, X, n_bins, bias_correction=None):
 # =============================================================
 # Transfer Entropy Binning
 # =============================================================
-def transfer_entropy_binning(source, target, n_bins=10, lag=1, bias_correction=None):
+def transfer_entropy_binning(source, target, n_bins = 10, lag=1, bias_correction=None):
     """
     Compute Transfer Entropy TE(source -> target).
 
@@ -128,260 +128,6 @@ def transfer_entropy_binning(source, target, n_bins=10, lag=1, bias_correction=N
 
     return TE
 
-
-# =============================================================
-# Transfer Entropy Gaussian 
-# =============================================================
-def transfer_entropy_gaussian(source, target, lag=1):
-    """
-    Gaussian Transfer Entropy TE(source -> target), result in bits.
-
-    Uses the conditional variance formula:
-        TE = 0.5 * log2( Var(X_t | X_{t-1}) / Var(X_t | X_{t-1}, S_{t-lag}) )
-    """
-    S_lag = np.roll(source, lag)
-    S_lag[:lag] = np.nan
-
-    X_past = np.roll(target, 1)
-    X_past[0] = np.nan
-
-    X_t = target
-
-    mask = ~np.isnan(S_lag) & ~np.isnan(X_past)
-    S_lag  = S_lag[mask]
-    X_past = X_past[mask]
-    X_t    = X_t[mask]
-
-    var1 = _conditional_variance(X_t, X_past)
-
-    Y_joint = np.column_stack((X_past, S_lag))
-    var2 = _conditional_variance(X_t, Y_joint)
-
-    TE = 0.5 * np.log2(var1 / var2)   # was np.log → nats; now log2 → bits
-    return TE
-
-# =============================================================
-# Transfer Entropy KDE
-# =============================================================
-#def transfer_entropy_kde(source, target, lag=1, **kwargs):
-#    """
-#    KDE-based Transfer Entropy TE(source -> target)
-#
-#    Uses:
-#    TE = I(X_t ; S_{t-lag}, X_{t-1}) - I(X_t ; X_{t-1})
-#
-#    Parameters
-#    ----------
-#    source : array
-#    target : array
-#    lag : int
-#   kwargs :
-#        passed to KDE MI estimator (e.g. alpha, resample)
-#
-#    Returns
-#    -------
-#    TE : float
-#    """
-""""
-    # -------------------------------
-    # Build lagged variables
-    # -------------------------------
-    S_lag = np.roll(source, lag)
-    S_lag[:lag] = np.nan
-
-    X_past = np.roll(target, 1)
-    X_past[0] = np.nan
-
-    X_t = target
-
-    # -------------------------------
-    # Remove invalid entries
-    # -------------------------------
-    mask = ~np.isnan(S_lag) & ~np.isnan(X_past)
-
-    S_lag = S_lag[mask]
-    X_past = X_past[mask]
-    X_t = X_t[mask]
-
-    # -------------------------------
-    # Build datasets for MI
-    # -------------------------------
-
-    # I(X_t ; X_past)
-    data_1 = np.column_stack((X_t, X_past))
-
-    # I(X_t ; [X_past, S_lag])
-    joint = np.column_stack((X_past, S_lag))
-
-    # IMPORTANT: estimate_mi expects 2D (n_samples, 2)
-    # So we compute MI via KDE using joint variable as 1 block
-    # Trick: flatten joint variable into a 2D variable using stacking
-    data_2 = np.column_stack((X_t, joint))
-
-    # -------------------------------
-    # Compute MI via KDE
-    # -------------------------------
-    mi_1 = estimate_mi(data_1, method='kde', **kwargs)
-    mi_2 = estimate_mi(data_2, method='kde', **kwargs)
-
-    # -------------------------------
-    # Transfer Entropy
-    # -------------------------------
-    TE = mi_2 - mi_1
-
-    return TE
-"""
-
-def transfer_entropy_kde(source, target, lag=1, alpha=1.0):
-    """
-    Fully consistent KDE-based Transfer Entropy TE(source -> target), in bits.
-
-    Uses the entropy decomposition:
-        TE = H(X_t | X_{t-1}) - H(X_t | X_{t-1}, S_{t-lag})
-           = E[log2 p(X_t, X_{t-1}, S)] - E[log2 p(X_{t-1}, S)]
-           - E[log2 p(X_t, X_{t-1})]    + E[log2 p(X_{t-1})]
-
-    All four KDE fits are at most 2D, so the curse of dimensionality is
-    contained. All terms are evaluated at the same sample points, so
-    biases partially cancel and TE >= 0 is respected in expectation.
-
-    Parameters
-    ----------
-    source, target : array (n_samples,)
-    lag : int
-    alpha : float
-        Bandwidth scaling factor passed to all KDE fits.
-
-    Returns
-    -------
-    TE : float (bits)
-    """
-    # --------------------------------------------------
-    # Build lagged variables
-    # --------------------------------------------------
-    S_lag  = np.roll(source, lag);  S_lag[:lag]  = np.nan
-    X_past = np.roll(target, 1);    X_past[0]    = np.nan
-    X_t    = target
-
-    mask   = ~np.isnan(S_lag) & ~np.isnan(X_past)
-    S_lag  = S_lag[mask]
-    X_past = X_past[mask]
-    X_t    = X_t[mask]
-
-    # --------------------------------------------------
-    # Four joint arrays (all <= 2D)
-    # --------------------------------------------------
-    XtXp   = np.column_stack((X_t,    X_past))          # (X_t,  X_{t-1})
-    XpS    = np.column_stack((X_past, S_lag))            # (X_{t-1}, S)
-    XtXpS  = np.column_stack((X_t,    X_past, S_lag))    # 3D — only density needed
-
-    # --------------------------------------------------
-    # Log-density estimates (plug-in: evaluate at training points)
-    # --------------------------------------------------
-    # NOTE: the 3-variable joint is unavoidable here, but we only need
-    # E[log p(X_t, X_{t-1}, S)] — a single KDE fit, not a difference of two.
-    # A single 3D KDE underestimates the absolute entropy, but that bias
-    # largely cancels with the 2D terms because all fits use the same
-    # bandwidth rule and the same n.
-    log_p_XtXpS = _estimate_log_density_kde(XtXpS,  XtXpS,  alpha)   # 3D
-    log_p_XpS   = _estimate_log_density_kde(XpS,    XpS,    alpha)    # 2D
-    log_p_XtXp  = _estimate_log_density_kde(XtXp,   XtXp,   alpha)    # 2D
-    log_p_Xp    = _estimate_log_density_kde(X_past, X_past, alpha)    # 1D
-
-    # --------------------------------------------------
-    # TE = E[log p(X_t,X_{t-1},S)] - E[log p(X_{t-1},S)]
-    #    - E[log p(X_t,X_{t-1})]   + E[log p(X_{t-1})]
-    # --------------------------------------------------
-    TE = np.mean(log_p_XtXpS - log_p_XpS - log_p_XtXp + log_p_Xp)
-
-    return TE
-
-# =============================================================
-# Transfer Entropy Gaussian Copula
-# =============================================================
-def transfer_entropy_gaussian_copula(source, target, lag=1):
-    """
-    Transfer Entropy using Gaussian Copula transformation
-    + Gaussian MI in transformed space.
-    """
-
-    # -----------------------------
-    # Build lagged variables
-    # -----------------------------
-    S_lag = np.roll(source, lag)
-    S_lag[:lag] = np.nan
-
-    X_past = np.roll(target, 1)
-    X_past[0] = np.nan
-
-    X_t = target
-
-    # -----------------------------
-    # Remove invalid samples
-    # -----------------------------
-    mask = ~np.isnan(S_lag) & ~np.isnan(X_past)
-
-    S_lag = S_lag[mask]
-    X_past = X_past[mask]
-    X_t = X_t[mask]
-
-    # -----------------------------
-    # Gaussianization 
-    # -----------------------------
-    def gaussianize(x):
-        n = len(x)
-
-        # rank-based CDF 
-        ranks = np.argsort(np.argsort(x)) + 1
-        u = ranks / (n + 1.0)
-
-        eps = 1e-6
-        u = np.clip(u, eps, 1 - eps)
-
-        return norm.ppf(u) # ppf = percentile point function
-                           # is the inverse of the CDF
-
-    Xg = gaussianize(X_t)
-    Pg = gaussianize(X_past)
-    Sg = gaussianize(S_lag)
-
-    # -----------------------------
-    # Build joint datasets
-    # -----------------------------
-    data_1 = np.column_stack((Xg, Pg))        # I(X_t ; X_{t-1})
-    data_2 = np.column_stack((Xg, Pg, Sg))    # I(X_t ; X_{t-1}, S)
-
-    # -----------------------------
-    # Gaussian MI
-    # -----------------------------
-    mi_1 = _estimate_mi_gaussian_multivariate(data_1)
-    mi_2 = _estimate_mi_gaussian_multivariate(data_2)
-
-    # -----------------------------
-    # Transfer Entropy
-    # -----------------------------
-    return mi_2 - mi_1
-
-# =============================================================
-# Transfer Entropy Computation Interface
-# =============================================================
-def transfer_entropy(source, target, method="binning", **kwargs):
-
-    if method == "binning":
-        return transfer_entropy_binning(source, target, **kwargs)
-
-    elif method == "gaussian":
-        return transfer_entropy_gaussian(source, target, **kwargs)
-
-    elif method == "kde":
-        return transfer_entropy_kde(source, target, **kwargs)
-    
-    elif method == "copula": 
-        return transfer_entropy_gaussian_copula(source, target, **kwargs)
-
-    else:
-        raise ValueError("Method must be 'binning', 'gaussian', 'kde' or 'copula'")
-
 # =============================================================
 # Transfer Entropy Matrix
 # =============================================================
@@ -415,7 +161,7 @@ def transfer_entropy_matrix(data_matrix, method="binning", **kwargs):
             if i == j:
                 continue
 
-            TE_mat[i, j] = transfer_entropy(
+            TE_mat[i, j] = transfer_entropy_withMI(
                 data_matrix_t[:, i],   # source
                 data_matrix_t[:, j],   # target
                 method=method,
@@ -472,17 +218,19 @@ def transfer_entropy_withMI(source, target, method="binning", lag=1, m=1, tau=1,
     # Note: estimate_mi expects (n_samples, 2). 
     # For m > 1, we treat the 'target' side as a multidimensional variable.
     # Ensure your estimators can handle ndim > 1 for the second variable.
-    i_joint = estimate_mi(data_joint, method=method, **kwargs)
-    
-    # 3. Second Term: I(X_lag ; Y_past)
-    data_past = np.column_stack((x_l, y_p))
-    i_past = estimate_mi(data_past, method=method, **kwargs)
-    
-    # 4. TE is the difference
-    return max(0, i_joint - i_past) # TE cannot be negative
+    if method == "binning": 
+        return transfer_entropy_binning(source, target, **kwargs)
+    else: 
+        i_joint = estimate_mi(data_joint, method=method, **kwargs)
+        
+        # 3. Second Term: I(X_lag ; Y_past)
+        data_past = np.column_stack((x_l, y_p))
+        i_past = estimate_mi(data_past, method=method, **kwargs)
+        
+        # 4. TE is the difference
+        return max(0, i_joint - i_past) # TE cannot be negative
 
 def theoretical_TE_AR(alpha, gamma, sigma_x, sigma_y):
     var_x = (sigma_x**2) / (1 - alpha**2)
     signal_contribution = (gamma**2) * var_x
     return 0.5 * np.log2(1 + (signal_contribution / sigma_y**2))
-

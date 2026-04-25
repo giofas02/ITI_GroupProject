@@ -186,12 +186,29 @@ def permutation_test_TE(data_matrix, TE_real, method, n_perms=200,
         off_diag     = ~np.eye(n_regions, dtype=bool)
         p_flat       = p_matrix[off_diag]          # all off-diagonal p-values, flattened
         m            = len(p_flat)                 # total number of tests
-        ranks        = rankdata(p_flat)            # rank each p-value (1 = smallest)
-        bh_threshold = (ranks / m) * alpha         # BH critical value for each rank
-        rejected     = p_flat <= bh_threshold      # True = significant after correction
+       
+        order = np.argsort(p_flat)
+        p_sorted = p_flat[order]                   # rank each p-value
+        
+        thresholds = alpha * np.arange(1, m + 1) / m        
+        passed = p_sorted <= thresholds            # Find p-values passing the BH condition
 
         sig_mask = np.zeros((n_regions, n_regions), dtype=bool)
-        sig_mask[off_diag] = rejected
+        
+        if np.any(passed): 
+            # Largest accepted rank
+            k_max = np.max(np.where(passed)[0])
+
+            # Corresponding p-value cutoff
+            p_cutoff = p_sorted[k_max]
+
+            # Declare significant all p-values below this cutoff
+            sig_flat = p_flat <= p_cutoff
+
+        # Put flat mask back into matrix form
+        sig_mask = np.zeros((n_regions, n_regions), dtype=bool)
+        sig_mask[off_diag] = sig_flat
+        
     else:
         sig_mask = (p_matrix < alpha)
         np.fill_diagonal(sig_mask, False)
