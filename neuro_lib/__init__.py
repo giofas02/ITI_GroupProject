@@ -8,9 +8,7 @@ from .plotting import (plot_ts, plot_hist, plot_joint_distribution, plot_joint_d
 from .transfer_entropy import (
     transfer_entropy_matrix,
     transfer_entropy_binning, 
-    transfer_entropy_gaussian,
-    transfer_entropy_kde, 
-    transfer_entropy_gaussian_copula, transfer_entropy_withMI, theoretical_TE_AR
+    transfer_entropy_withMI, theoretical_TE_AR
 )
 from .diagnostics import check_stationarity, find_optimal_delay, find_optimal_dimension, test_significance, permutation_test_TE
 
@@ -28,10 +26,7 @@ __all__ = [
     'plot_joint_distribution_sns',
     'transfer_entropy_matrix',
     'transfer_entropy_binning',
-    'transfer_entropy_gaussian',
-    'transfer_entropy_kde', 
-    'transfer_entropy_gaussian_copula',
-        'generate_ar_coupled',
+    'generate_ar_coupled',
     'generate_oscillatory_coupled',
     'check_stationarity',
     'find_optimal_delay',
