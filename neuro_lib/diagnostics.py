@@ -205,8 +205,12 @@ def permutation_test_TE(data_matrix, TE_real, method, n_perms=200,
             # Declare significant all p-values below this cutoff
             sig_flat = p_flat <= p_cutoff
 
+        else:
+            # If no p-value satisfies the BH condition,
+            # no connection is declared significant
+            sig_flat = np.zeros_like(p_flat, dtype=bool)
+
         # Put flat mask back into matrix form
-        sig_mask = np.zeros((n_regions, n_regions), dtype=bool)
         sig_mask[off_diag] = sig_flat
         
     else:

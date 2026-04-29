@@ -219,7 +219,7 @@ def transfer_entropy_withMI(source, target, method="binning", lag=1, m=1, tau=1,
     # For m > 1, we treat the 'target' side as a multidimensional variable.
     # Ensure your estimators can handle ndim > 1 for the second variable.
     if method == "binning": 
-        return transfer_entropy_binning(source, target, **kwargs)
+        return transfer_entropy_binning(source, target, lag = lag, **kwargs)
     else: 
         i_joint = estimate_mi(data_joint, method=method, **kwargs)
         

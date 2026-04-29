@@ -157,7 +157,10 @@ def TE_heatMat(TE_mat, figsize=(10,8), cmap='viridis', show=True, n_ticks=5):
     ax = sns.heatmap(
         TE_mat,
         cmap=cmap,
+        center = 0,
         square=True,
+        vmin = 0, 
+        vmax = 0.25, 
         cbar_kws={'label': 'Transfer Entropy'},
         xticklabels=False,  # will set ticks manually
         yticklabels=False
